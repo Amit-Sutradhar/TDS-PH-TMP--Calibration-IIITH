@@ -1,1 +1,265 @@
+// #include <OneWire.h>
+// #include <DallasTemperature.h>
+// #include "DFRobot_PH.h"
+// #include <EEPROM.h>
 
+// const int analogPin = A0; // Analog pin connected to the TDS sensor
+// const int temperaturePin = 2; // Pin connected to the DS18B20 temperature sensor
+// #define PH_PIN A1
+
+// // Calibration values
+// float calibrationADCValue[] = {0, 4, 17, 26, 130, 381, 493};
+// float calibrationTDS[] = {0, 9, 22, 50, 300, 634, 1000};
+
+// #define SCOUNT 30      // sum of sample point
+// int analogBuffer[SCOUNT];
+// int analogBufferIndex = 0;
+// float tdsValues[SCOUNT];
+// float temperature = 25;
+
+// OneWire oneWire(temperaturePin);
+// DallasTemperature sensors(&oneWire);
+// DFRobot_PH ph;
+
+// void setup() {
+//   Serial.begin(9600); // Initialize serial communication
+//   pinMode(temperaturePin, INPUT);
+//   ph.begin();
+// }
+
+// void loop() {
+//   int adcValue = analogRead(analogPin); // Read ADC value from the TDS sensor
+
+//   // Map the ADC value to TDS concentration using linear interpolation
+//   float tdsValue = interpolate(adcValue, calibrationADCValue, calibrationTDS, sizeof(calibrationADCValue) / sizeof(calibrationADCValue[0]));
+
+//   // Read temperature from DS18B20 sensor
+//   sensors.requestTemperatures();
+//   float temperature = sensors.getTempCByIndex(0);
+
+//   // Apply temperature compensation
+//   float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0);
+//   float compensationVoltage = tdsValue / compensationCoefficient;
+
+//   // Store TDS values in the array for mean and median calculations
+//   tdsValues[analogBufferIndex] = compensationVoltage;
+
+//   // pH Measurement
+//   float voltage = analogRead(PH_PIN) / 1024.0 * 5000; // read the voltage
+//   float phValue = ph.readPH(voltage, temperature);    // convert voltage to pH with temperature compensation
+
+//   //every 40 milliseconds, read the analog value from the ADC
+//   static unsigned long analogSampleTimepoint = millis();
+//   if (millis() - analogSampleTimepoint > 40U) {
+//     analogSampleTimepoint = millis();
+//     analogBuffer[analogBufferIndex] = adcValue;    // read the analog value and store into the buffer
+//     analogBufferIndex++;
+//     if (analogBufferIndex == SCOUNT)
+//       analogBufferIndex = 0;
+//   }
+
+//   // Calculate mean and median of TDS values
+//   float meanValue = getMean(tdsValues, SCOUNT);
+//   float medianValue = getMedian(tdsValues, SCOUNT);
+
+//   // Print the TDS values, mean, median, and temperature to the serial monitor
+//   Serial.print("ADC Value: ");
+//   Serial.print(adcValue);
+//   Serial.print(", Compensated TDS Value: ");
+//   Serial.print(compensationVoltage, 2);
+//   Serial.print(" V, Mean TDS Value: ");
+//   Serial.print(meanValue, 2);
+//   Serial.print(", pH Value: ");
+//   Serial.println(phValue, 2);
+
+//   ph.calibration(voltage, temperature); // calibration process by Serial CMD
+// }
+
+// float readTemperature() {
+//   // add your code here to get the temperature from your temperature sensor
+// }
+
+// // Custom linear interpolation function
+// float interpolate(float x, float x_values[], float y_values[], int size) {
+//   for (int i = 1; i < size; ++i) {
+//     if (x < x_values[i]) {
+//       // Linear interpolation formula: y = y1 + (x - x1) * ((y2 - y1) / (x2 - x1))
+//       return y_values[i - 1] + (x - x_values[i - 1]) * ((y_values[i] - y_values[i - 1]) / (x_values[i] - x_values[i - 1]));
+//     }
+//   }
+//   return y_values[size - 1]; // Return the last value if x is greater than the highest x_value
+// }
+
+// float getMean(float values[], int size) {
+//   float sum = 0;
+//   for (int i = 0; i < size; ++i) {
+//     sum += values[i];
+//   }
+//   return sum / size;
+// }
+
+// float getMedian(float values[], int size) {
+//   float sortedValues[size];
+//   for (int i = 0; i < size; ++i) {
+//     sortedValues[i] = values[i];
+//   }
+
+//   // Sort the array
+//   for (int i = 0; i < size - 1; ++i) {
+//     for (int j = 0; j < size - i - 1; ++j) {
+//       if (sortedValues[j] > sortedValues[j + 1]) {
+//         float temp = sortedValues[j];
+//         sortedValues[j] = sortedValues[j + 1];
+//         sortedValues[j + 1] = temp;
+//       }
+//     }
+//   }
+
+//   // Calculate median
+//   if (size % 2 == 0) {
+//     return (sortedValues[size / 2 - 1] + sortedValues[size / 2]) / 2.0;
+//   } else {
+//     return sortedValues[size / 2];
+//   }
+// }
+
+
+
+
+
+
+
+
+
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DFRobot_PH.h"
+#include <EEPROM.h>
+
+const int analogPin = A0; // Analog pin connected to the TDS sensor
+const int temperaturePin = 2; // Pin connected to the DS18B20 temperature sensor
+#define PH_PIN A1
+
+// Calibration values
+float calibrationADCValue[] = {0, 4, 17, 26, 130, 381, 493};
+float calibrationTDS[] = {0, 9, 22, 50, 300, 634, 1000};
+
+#define SCOUNT 30      // sum of sample point
+int analogBuffer[SCOUNT];
+int analogBufferIndex = 0;
+float tdsValues[SCOUNT];
+float temperature = 25;
+
+OneWire oneWire(temperaturePin);
+DallasTemperature sensors(&oneWire);
+DFRobot_PH ph;
+
+void setup() {
+  Serial.begin(9600); // Initialize serial communication
+  pinMode(temperaturePin, INPUT);
+  ph.begin();
+}
+
+void loop() {
+  int adcValue = analogRead(analogPin); // Read ADC value from the TDS sensor
+
+  // Map the ADC value to TDS concentration using linear interpolation
+  float tdsValue = interpolate(adcValue, calibrationADCValue, calibrationTDS, sizeof(calibrationADCValue) / sizeof(calibrationADCValue[0]));
+
+  // Read temperature from DS18B20 sensor
+  sensors.requestTemperatures();
+  float temperature = sensors.getTempCByIndex(0);
+
+  // Apply temperature compensation
+  float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0);
+  float compensationVoltage = tdsValue / compensationCoefficient;
+
+  // Store TDS values in the array for mean and median calculations
+  tdsValues[analogBufferIndex] = compensationVoltage;
+
+  // pH Measurement
+  float voltage = analogRead(PH_PIN) / 1024.0 * 5000; // read the voltage
+  float phValue = ph.readPH(voltage, temperature);    // convert voltage to pH with temperature compensation
+
+  //every 40 milliseconds, read the analog value from the ADC
+  static unsigned long analogSampleTimepoint = millis();
+  if (millis() - analogSampleTimepoint > 40U) {
+    analogSampleTimepoint = millis();
+    analogBuffer[analogBufferIndex] = adcValue;    // read the analog value and store into the buffer
+    analogBufferIndex++;
+    if (analogBufferIndex == SCOUNT)
+      analogBufferIndex = 0;
+  }
+
+  // Calculate mean and median of TDS values
+  float meanValue = getMean(tdsValues, SCOUNT);
+  float medianValue = getMedian(tdsValues, SCOUNT);
+
+  // Print the TDS values, mean, median, pH value, and temperature to the serial monitor
+  Serial.print("||ADC Value: ");
+  Serial.print(adcValue);
+  Serial.print("|| Compensated TDS Value: ");
+  Serial.print(compensationVoltage, 2);
+  Serial.print(" V|| Mean TDS Value: ");
+  Serial.print(meanValue, 2);
+  Serial.print("|| Median TDS Value: ");
+  Serial.print(medianValue, 2);
+  Serial.print("|| pH Value: ");
+  Serial.print(phValue, 2);
+  Serial.print("|| Temperature: ");
+  Serial.println(temperature);
+    delay(2000); // Delay for 1 second
+
+
+  ph.calibration(voltage, temperature); // calibration process by Serial CMD
+}
+
+float readTemperature() {
+  // add your code here to get the temperature from your temperature sensor
+}
+
+// Custom linear interpolation function
+float interpolate(float x, float x_values[], float y_values[], int size) {
+  for (int i = 1; i < size; ++i) {
+    if (x < x_values[i]) {
+      // Linear interpolation formula: y = y1 + (x - x1) * ((y2 - y1) / (x2 - x1))
+      return y_values[i - 1] + (x - x_values[i - 1]) * ((y_values[i] - y_values[i - 1]) / (x_values[i] - x_values[i - 1]));
+    }
+  }
+  return y_values[size - 1]; // Return the last value if x is greater than the highest x_value
+}
+
+float getMean(float values[], int size) {
+  float sum = 0;
+  for (int i = 0; i < size; ++i) {
+    sum += values[i];
+  }
+  return sum / size;
+}
+
+float getMedian(float values[], int size) {
+  float sortedValues[size];
+  for (int i = 0; i < size; ++i) {
+    sortedValues[i] = values[i];
+  }
+
+  // Sort the array
+  for (int i = 0; i < size - 1; ++i) {
+    for (int j = 0; j < size - i - 1; ++j) {
+      if (sortedValues[j] > sortedValues[j + 1]) {
+        float temp = sortedValues[j];
+        sortedValues[j] = sortedValues[j + 1];
+        sortedValues[j + 1] = temp;
+      }
+    }
+  }
+
+  // Calculate median
+  if (size % 2 == 0) {
+    return (sortedValues[size / 2 - 1] + sortedValues[size / 2]) / 2.0;
+  } else {
+    return sortedValues[size / 2];
+  }
+  
+}
