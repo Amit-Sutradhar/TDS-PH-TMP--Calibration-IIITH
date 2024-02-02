@@ -24,3 +24,7 @@ USING THIS command
 
 -----AND Only Tds and tmp com only v1--------
 and this file i calibrate only tds using adc and also add tmp com 
+
+
+---------rtc-------------
+in with rtc file all data is there with rtc
