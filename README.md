@@ -34,3 +34,11 @@ in with rtc file all data is there with rtc
 --------------esp32 tds cali  v2--with adc try------------
 on this file i just add 16 bit adc with esp 32 and measure adc output ,,, sometime its showing - value so ami minimum value 0 kore diyechi 
 and adc pin vcc holo 3.3v and tds pin vcc is 5v
+
+
+
+
+
+-------------------esp32-tm-com-adc--c3--work goog1-----------------
+esp32,adc 12 bit ,,,tds cunnectes with 5v ,,tmp cunnectes with 3v ,,,adc is 3v ,,, its good working remember when you cullect the adc value of any water you need to cullect the adc value at 25degree 
+
