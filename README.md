@@ -42,3 +42,5 @@ and adc pin vcc holo 3.3v and tds pin vcc is 5v
 -------------------esp32-tm-com-adc--c3--work goog1-----------------
 esp32,adc 12 bit ,,,tds cunnectes with 5v ,,tmp cunnectes with 3v ,,,adc is 3v ,,, its good working remember when you cullect the adc value of any water you need to cullect the adc value at 25degree 
 
+-------------3--esp32 --work good 2 tds-ph-adc-com-------------------
+with below 40 tds showing 0 tds 
