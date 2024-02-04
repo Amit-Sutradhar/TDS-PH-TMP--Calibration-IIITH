@@ -1,0 +1,131 @@
+// // #include <Wire.h>
+//-------------------------------this is not complete code its just for try ,,, im using adc 12 bit on eesp32 ,,,
+// // #include <Adafruit_ADS1X15.h>
+
+// // // Create an ADS1X15 instance
+// // Adafruit_ADS1115 ads;
+
+// // void setup(void) {
+// //   Serial.begin(9600);
+
+// //   // Initialize the ADS1115
+// //   if (!ads.begin()) {
+// //     Serial.println("Failed to initialize ADS1115!");
+// //     while (1);
+// //   }
+
+// //   // Set the gain (PGA) to adjust the measurement range
+// //   ads.setGain(GAIN_TWOTHIRDS);  // GAIN_TWOTHIRDS, GAIN_ONE, GAIN_TWO, GAIN_FOUR, GAIN_EIGHT, GAIN_SIXTEEN
+// // }
+
+// // void loop(void) {
+// //   // Get the ADC value for the TDS sensor connected to A0
+// //   int16_t adcValue = ads.readADC_SingleEnded(0);
+
+// //   // Print the ADC value and corresponding voltage
+// //   Serial.print("ADC Value: ");
+// //   Serial.print(adcValue);
+// //   Serial.print("\tVoltage: ");
+// //   Serial.println(ads.computeVolts(adcValue));
+
+// //   delay(1000);  // Wait for 1 second before the next reading
+// // }
+
+
+
+// #include <Wire.h>
+// #include <Adafruit_ADS1X15.h>
+
+// // Create an ADS1X15 instance
+// Adafruit_ADS1115 ads;
+
+// // Calibration points
+// const float adcValues[] = {48, 1088, 6864, 13328};
+// const float tdsValues[] = {0, 50, 300, 684};
+
+// void setup(void) {
+//   Serial.begin(9600);
+
+//   // Initialize the ADS1115
+//   if (!ads.begin()) {
+//     Serial.println("Failed to initialize ADS1115!");
+//     while (1);
+//   }
+
+//   // Set the gain (PGA) to adjust the measurement range
+//   ads.setGain(GAIN_TWOTHIRDS);  // GAIN_TWOTHIRDS, GAIN_ONE, GAIN_TWO, GAIN_FOUR, GAIN_EIGHT, GAIN_SIXTEEN
+// }
+
+// void loop(void) {
+//   // Get the ADC value for the TDS sensor connected to A0
+//   int16_t adcValue = ads.readADC_SingleEnded(0);
+
+//   // Map the ADC value to TDS using linear interpolation
+//   float tds = mapFloat(adcValue, adcValues[0], adcValues[3], tdsValues[0], tdsValues[3]);
+
+//   // Print the ADC value, corresponding voltage, and calculated TDS
+//   Serial.print("ADC Value: ");
+//   Serial.print(adcValue);
+//   Serial.print("\tVoltage: ");
+//   Serial.print(ads.computeVolts(adcValue));
+//   Serial.print("\tTDS: ");
+//   Serial.println(tds);
+
+//   delay(1000);  // Wait for 1 second before the next reading
+// }
+
+// // Function for linear interpolation
+// float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+//   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+// }
+
+
+
+#include <Wire.h>
+#include <Adafruit_ADS1X15.h>
+
+// Create an ADS1X15 instance
+Adafruit_ADS1115 ads;
+
+// Calibration points
+const float adcValues[] = {48, 1088, 6864, 13328};
+const float tdsValues[] = {0, 50, 300, 684};
+
+void setup(void) {
+  Serial.begin(9600);
+
+  // Initialize the ADS1115
+  if (!ads.begin()) {
+    Serial.println("Failed to initialize ADS1115!");
+    while (1);
+  }
+
+  // Set the gain (PGA) to adjust the measurement range
+  ads.setGain(GAIN_TWOTHIRDS);  // GAIN_TWOTHIRDS, GAIN_ONE, GAIN_TWO, GAIN_FOUR, GAIN_EIGHT, GAIN_SIXTEEN
+}
+
+void loop(void) {
+  // Get the ADC value for the TDS sensor connected to A0
+  int16_t adcValue = ads.readADC_SingleEnded(0);
+
+  // Map the ADC value to TDS using linear interpolation
+  float tds = mapFloat(adcValue, adcValues[0], adcValues[3], tdsValues[0], tdsValues[3]);
+
+  // Ensure the calculated TDS value doesn't go below 0
+  tds = max(tds, float(0.0));
+
+  // Print the ADC value, corresponding voltage, and calculated TDS
+  Serial.print("ADC Value: ");
+  Serial.print(adcValue);
+  Serial.print("\tVoltage: ");
+  Serial.print(ads.computeVolts(adcValue));
+  Serial.print("\tTDS: ");
+  Serial.println(tds);
+
+  delay(1000);  // Wait for 1 second before the next reading
+}
+
+// Function for linear interpolation
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
