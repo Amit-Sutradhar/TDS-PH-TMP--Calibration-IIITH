@@ -28,3 +28,9 @@ and this file i calibrate only tds using adc and also add tmp com
 
 ---------rtc-------------
 in with rtc file all data is there with rtc
+
+
+
+--------------esp32 tds cali  v2--with adc try------------
+on this file i just add 16 bit adc with esp 32 and measure adc output ,,, sometime its showing - value so ami minimum value 0 kore diyechi 
+and adc pin vcc holo 3.3v and tds pin vcc is 5v
