@@ -1,4 +1,4 @@
-//ADS1115--------5V, TMP;3V  ,PH5V   , TDS 5V,
+//ADS1115--------5V, TMP;3V  ,PH5V   , TDS 5V, AND ON THIS CODE I JUST ADD TDS WITH ADC CUNNECTOR PH IS CUNNECTED WITH ESP
 
 #include <Wire.h>
 #include <Adafruit_ADS1X15.h>
