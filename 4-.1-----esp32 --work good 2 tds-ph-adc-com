@@ -1,0 +1,179 @@
+#include <Wire.h>
+#include <Adafruit_ADS1X15.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DFRobot_ESP_PH.h"
+#include "EEPROM.h"
+
+DFRobot_ESP_PH ph;
+#define ESPADC 4096.0   //the esp Analog Digital Conversion value
+#define ESPVOLTAGE 3300 //the esp voltage supply value
+#define PH_PIN 35        //the esp gpio data pin number
+float voltage, phValue, temperature = 25;
+
+// Create an ADS1X15 instance
+Adafruit_ADS1115 ads;
+
+const int analogPin = A0; // Analog pin connected to the TDS sensor
+const int temperaturePin = 33; // Pin connected to the DS18B20 temperature sensor
+
+// Calibration values
+float calibrationADCValue[] = {20, 631, 1510, 4988, 13952, 20296};
+float calibrationTDS[] = {0, 50, 63, 300, 661, 1000};
+
+#define SCOUNT 30      // sum of sample point
+int analogBuffer[SCOUNT];
+int analogBufferIndex = 0;
+float tdsValues[SCOUNT];
+
+OneWire oneWire(temperaturePin);
+DallasTemperature sensors(&oneWire);
+
+void setup() {
+  Serial.begin(9600); // Initialize serial communication
+
+  // Initialize the ADS1115
+  if (!ads.begin()) {
+    Serial.println("Failed to initialize ADS1115!");
+    while (1);
+  }
+
+  // Set the gain (PGA) to adjust the measurement range
+  ads.setGain(GAIN_TWOTHIRDS);  // Adjust the gain as needed
+
+  pinMode(temperaturePin, INPUT);
+
+  // PH sensor setup
+  Serial.begin(115200);
+  EEPROM.begin(32); // Needed to permit storage of calibration value in EEPROM
+  ph.begin();
+}
+
+void loop() {
+  // Get the ADC value for the TDS sensor connected to A0
+  int16_t adcValue = ads.readADC_SingleEnded(0);
+
+  // Map the ADC value to TDS concentration using linear interpolation
+  float tdsValue = interpolate(adcValue, calibrationADCValue, calibrationTDS, sizeof(calibrationADCValue) / sizeof(calibrationADCValue[0]));
+
+  // Read temperature from DS18B20 sensor
+  sensors.requestTemperatures();
+  temperature = sensors.getTempCByIndex(0);
+
+  // Apply temperature compensation
+  float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0);
+  float compensationVoltage = tdsValue / compensationCoefficient;
+
+  // Ensure the compensated TDS value is not below 0
+  if (compensationVoltage < 0.0) {
+    compensationVoltage = 0.0;
+  }
+
+  // Store TDS values in the array for mean and median calculations
+  tdsValues[analogBufferIndex] = compensationVoltage;
+
+  // Every 40 milliseconds, read the analog value from the ADC
+  static unsigned long analogSampleTimepoint = millis();
+  if (millis() - analogSampleTimepoint > 40U) {
+    analogSampleTimepoint = millis();
+    analogBuffer[analogBufferIndex] = adcValue;    // read the analog value and store it into the buffer
+    analogBufferIndex++;
+    if (analogBufferIndex == SCOUNT)
+      analogBufferIndex = 0;
+  }
+
+  // Calculate mean and median of TDS values
+  float meanValue = getMean(tdsValues, SCOUNT);
+  float medianValue = getMedian(tdsValues, SCOUNT);
+
+  // Print the TDS values, mean, median, and temperature to the serial monitor
+  Serial.print("ADC Value: ");
+  Serial.print(adcValue);
+
+  // Check if ADC value is below 40, set compensated TDS, mean, and median to 0
+  if (adcValue < 40) {
+    compensationVoltage = 0.0;
+    meanValue = 0.0;
+    medianValue = 0.0;
+  }
+
+  Serial.print(", Compensated TDS Value: ");
+  Serial.print(compensationVoltage, 2);
+  Serial.print(" V, Mean Value: ");
+  Serial.print(meanValue, 2);
+  Serial.print(", Median Value: ");
+  Serial.print(medianValue, 2);
+  Serial.print(", Temperature: ");
+  Serial.print(temperature);
+  Serial.println(" °C");
+
+  // PH sensor code
+  static unsigned long timepoint = millis();
+  if (millis() - timepoint > 1000U) // Time interval: 1s
+  {
+    timepoint = millis();
+    // Voltage = rawPinValue / esp32ADC * esp32Vin
+    voltage = analogRead(PH_PIN) / ESPADC * ESPVOLTAGE; // Read the voltage
+    Serial.print("Voltage:");
+    Serial.println(voltage, 4);
+
+    // Temperature = readTemperature();  // Read your temperature sensor to execute temperature compensation
+    Serial.print("Temperature:");
+    Serial.print(temperature, 1);
+    Serial.println("°C");
+
+    phValue = ph.readPH(voltage, temperature); // Convert voltage to pH with temperature compensation
+    Serial.print("pH:");
+    Serial.println(phValue, 4);
+  }
+
+  ph.calibration(voltage, temperature); // Calibration process by Serial CMD
+}
+
+// Custom linear interpolation function
+float interpolate(float x, float x_values[], float y_values[], int size) {
+  for (int i = 1; i < size; ++i) {
+    if (x < x_values[i]) {
+      // Linear interpolation formula: y = y1 + (x - x1) * ((y2 - y1) / (x2 - x1))
+      return y_values[i - 1] + (x - x_values[i - 1]) * ((y_values[i] - y_values[i - 1]) / (x_values[i] - x_values[i - 1]));
+    }
+  }
+  return y_values[size - 1]; // Return the last value if x is greater than the highest x_value
+}
+
+float getMean(float values[], int size) {
+  float sum = 0;
+  for (int i = 0; i < size; ++i) {
+    sum += values[i];
+  }
+  return sum / size;
+}
+
+float getMedian(float values[], int size) {
+  float sortedValues[size];
+  for (int i = 0; i < size; ++i) {
+    sortedValues[i] = values[i];
+  }
+
+  // Sort the array
+  for (int i = 0; i < size - 1; ++i) {
+    for (int j = 0; j < size - i - 1; ++j) {
+      if (sortedValues[j] > sortedValues[j + 1]) {
+        float temp = sortedValues[j];
+        sortedValues[j] = sortedValues[j + 1];
+        sortedValues[j + 1] = temp;
+      }
+    }
+  }
+
+  // Calculate median
+  if (size % 2 == 0) {
+    return (sortedValues[size / 2 - 1] + sortedValues[size / 2]) / 2.0;
+  } else {
+    return sortedValues[size / 2];
+  }
+}
+
+float readTemperature() {
+  // Add your code here to get the temperature from your temperature sensor
+}
