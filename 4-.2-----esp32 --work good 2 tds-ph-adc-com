@@ -1,4 +1,4 @@
-
+//ADS1115--------5V, TMP;3V  ,PH5V   , TDS 5V,
 
 #include <Wire.h>
 #include <Adafruit_ADS1X15.h>
