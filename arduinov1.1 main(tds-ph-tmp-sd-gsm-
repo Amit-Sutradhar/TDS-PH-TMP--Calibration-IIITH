@@ -1,0 +1,305 @@
+#include <SoftwareSerial.h> //on that code ph mn-med is not added ,,,,,,,main v1 code 
+SoftwareSerial gprsSerial( 5,6);
+
+#include <String.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DFRobot_PH.h"
+#include <Wire.h>
+#include <RTClib.h>  // Include the RTC library
+#include <SD.h>      // Include the SD card library
+
+RTC_DS3231 rtc;  // Create an RTC object
+
+const int analogPin = A0; // Analog pin connected to the TDS sensor
+const int temperaturePin = 2; // Pin connected to the DS18B20 temperature sensor
+#define PH_PIN A1
+
+// Calibration values
+float calibrationADCValue[] = {0, 4, 17, 26, 130, 381, 493};
+float calibrationTDS[] = {0, 9, 22, 50, 300, 634, 1000};
+
+#define SCOUNT 30      // sum of sample point
+int analogBuffer[SCOUNT];
+int analogBufferIndex = 0;
+float tdsValues[SCOUNT];
+float temperature = 25;
+
+OneWire oneWire(temperaturePin);
+DallasTemperature sensors(&oneWire);
+DFRobot_PH ph;
+
+File dataFile;
+const char* SD_FILENAME = "/data_log.csv";
+
+void setup()
+{
+  gprsSerial.begin(9600); // the GPRS baud rate
+  Serial.begin(9600);     // the GPRS baud rate
+  sensors.begin();
+  ph.begin();
+
+  // Check if RTC is connected
+  if (!rtc.begin())
+  {
+    Serial.println("Couldn't find RTC");
+  }
+  else
+  {
+    Serial.println("RTC found!");
+    // Check if RTC lost power and if so, set the time
+    if (rtc.lostPower())
+    {
+      Serial.println("RTC lost power, let's set the time!");
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    }
+  }
+
+  // Initialize SD card
+  if (!SD.begin())
+  {
+    Serial.println("SD card initialization failed!");
+    return;
+  }
+  Serial.println("SD card initialized.");
+
+  delay(1000);
+}
+
+void loop()
+{
+  DateTime now = rtc.now(); // Get the current time from the RTC
+
+  // Print timestamp and update message if RTC is detected
+  if (rtc.begin())
+  {
+    Serial.print(now.timestamp(DateTime::TIMESTAMP_FULL));
+    Serial.println(" RTC data updated");
+  }
+  else
+  {
+    Serial.println("RTC not detected");
+  }
+
+  int adcValue = analogRead(analogPin); // Read ADC value from the TDS sensor
+
+  // Map the ADC value to TDS concentration using linear interpolation
+  float tdsValue = interpolate(adcValue, calibrationADCValue, calibrationTDS, sizeof(calibrationADCValue) / sizeof(calibrationADCValue[0]));
+
+  // Read temperature from DS18B20 sensor
+  sensors.requestTemperatures();
+  float temperature = sensors.getTempCByIndex(0);
+
+  // Apply temperature compensation
+  float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0);
+  float compensationVoltage = tdsValue / compensationCoefficient;
+
+  // Store TDS values in the array for mean and median calculations
+  tdsValues[analogBufferIndex] = compensationVoltage;
+
+  // pH Measurement
+  float voltage = analogRead(PH_PIN) / 1024.0 * 5000; // read the voltage
+  float phValue = ph.readPH(voltage, temperature);    // convert voltage to pH with temperature compensation
+
+  //every 40 milliseconds, read the analog value from the ADC
+  static unsigned long analogSampleTimepoint = millis();
+  if (millis() - analogSampleTimepoint > 40U)
+  {
+    analogSampleTimepoint = millis();
+    analogBuffer[analogBufferIndex] = adcValue; // read the analog value and store into the buffer
+    analogBufferIndex++;
+    if (analogBufferIndex == SCOUNT)
+      analogBufferIndex = 0;
+  }
+
+  // Calculate mean and median of TDS values
+  float meanValue = getMean(tdsValues, SCOUNT);
+  float medianValue = getMedian(tdsValues, SCOUNT);
+
+  // Print the TDS values, mean, median, pH value, and temperature to the serial monitor
+  Serial.print("||ADC Value: ");
+  Serial.print(adcValue);
+  Serial.print("|| Compensated TDS Value: ");
+  Serial.print(compensationVoltage, 2);
+  Serial.print(" V|| Mean TDS Value: ");
+  Serial.print(meanValue, 2);
+  Serial.print("|| Median TDS Value: ");
+  Serial.print(medianValue, 2);
+  Serial.print("|| pH Value: ");
+  Serial.print(phValue, 2);
+  Serial.print("|| Temperature: ");
+  Serial.println(temperature);
+
+  delay(2000); // Delay for 1 second
+
+  ph.calibration(voltage, temperature); // calibration process by Serial CMD
+
+  // Write data to SD card
+  writeDataToSD(now, adcValue, compensationVoltage, meanValue, medianValue, phValue, temperature);
+
+  delay(2000); // Delay for 2 seconds before next iteration
+
+  // GSM Module Related Code
+
+  ph.calibration(voltage, temperature); // calibration process by Serial CMD
+
+  // Now upload the data to ThingSpeak
+  gprsSerial.println("AT");
+  delay(1000);
+
+  gprsSerial.println("AT+CPIN?");
+  delay(1000);
+
+  gprsSerial.println("AT+CREG?");
+  delay(1000);
+
+  gprsSerial.println("AT+CGATT?");
+  delay(1000);
+
+  gprsSerial.println("AT+CIPSHUT");
+  delay(1000);
+
+  gprsSerial.println("AT+CIPSTATUS");
+  delay(2000);
+
+  gprsSerial.println("AT+CIPMUX=0");
+  delay(2000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CSTT=\"cmnet\""); //start task and setting the APN,
+  delay(1000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIICR"); //bring up wireless connection
+  delay(3000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIFSR"); //get local IP adress
+  delay(2000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSPRT=0");
+  delay(3000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSTART=\"TCP\",\"api.thingspeak.com\",\"80\""); //start up the connection
+  delay(6000);
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSEND"); //begin send data to remote server
+  delay(4000);
+  ShowSerialData();
+
+  String str = "GET https://api.thingspeak.com/update?api_key=UD06VD57OJNGB36X&field1=" + String(temperature) + "&field2=" + String(phValue) + "&field3=" + String(meanValue) + "&field4=" + String(medianValue) + "&field5=" + String(compensationVoltage);
+  Serial.println(str);
+  gprsSerial.println(str); //begin send data to remote server
+
+  delay(4000);
+  ShowSerialData();
+
+  gprsSerial.println((char)26); //sending
+  delay(5000);                   //waitting for reply, important! the time is base on the condition of internet
+  gprsSerial.println();
+
+  ShowSerialData();
+
+  gprsSerial.println("AT+CIPSHUT"); //close the connection
+  delay(100);
+  ShowSerialData();
+}
+
+void ShowSerialData()
+{
+  while (gprsSerial.available() != 0)
+    Serial.write(gprsSerial.read());
+  delay(5000);
+}
+
+void writeDataToSD(DateTime now, int adcValue, float compensationVoltage, float meanValue, float medianValue, float phValue, float temperature)
+{
+  dataFile = SD.open(SD_FILENAME, FILE_WRITE);
+  if (dataFile)
+  {
+    // Write data to the file
+    dataFile.print(now.timestamp(DateTime::TIMESTAMP_FULL));
+    dataFile.print(",");
+    dataFile.print(adcValue);
+    dataFile.print(",");
+    dataFile.print(compensationVoltage, 2);
+    dataFile.print(",");
+    dataFile.print(meanValue, 2);
+    dataFile.print(",");
+    dataFile.print(medianValue, 2);
+    dataFile.print(",");
+    dataFile.print(phValue, 2);
+    dataFile.print(",");
+    dataFile.println(temperature);
+    dataFile.close();
+  }
+  else
+  {
+    Serial.println("Error opening data file.");
+  }
+}
+
+float interpolate(float x, float x_values[], float y_values[], int size)
+{
+  for (int i = 1; i < size; ++i)
+  {
+    if (x < x_values[i])
+    {
+      // Linear interpolation formula: y = y1 + (x - x1) * ((y2 - y1) / (x2 - x1))
+      return y_values[i - 1] + (x - x_values[i - 1]) * ((y_values[i] - y_values[i - 1]) / (x_values[i] - x_values[i - 1]));
+    }
+  }
+  return y_values[size - 1]; // Return the last value if x is greater than the highest x_value
+}
+
+float getMean(float values[], int size)
+{
+  float sum = 0;
+  for (int i = 0; i < size; ++i)
+  {
+    sum += values[i];
+  }
+  return sum / size;
+}
+
+float getMedian(float values[], int size)
+{
+  float sortedValues[size];
+  for (int i = 0; i < size; ++i)
+  {
+    sortedValues[i] = values[i];
+  }
+
+  // Sort the array
+  for (int i = 0; i < size - 1; ++i)
+  {
+    for (int j = 0; j < size - i - 1; ++j)
+    {
+      if (sortedValues[j] > sortedValues[j + 1])
+      {
+        float temp = sortedValues[j];
+        sortedValues[j] = sortedValues[j + 1];
+        sortedValues[j + 1] = temp;
+      }
+    }
+  }
+
+  // Calculate median
+  if (size % 2 == 0)
+  {
+    return (sortedValues[size / 2 - 1] + sortedValues[size / 2]) / 2.0;
+  }
+  else
+  {
+    return sortedValues[size / 2];
+  }
+}
