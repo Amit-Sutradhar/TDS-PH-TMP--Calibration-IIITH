@@ -1,0 +1,46 @@
+// Define the pin connections
+#define L298N_IN1 16
+#define L298N_IN2 17
+#define L298N_IN3 18
+#define L298N_IN4 19
+#define RELAY_PIN 7
+
+void setup() {
+  // Initialize motor pins as outputs
+  pinMode(L298N_IN1, OUTPUT);
+  pinMode(L298N_IN2, OUTPUT);
+  pinMode(L298N_IN3, OUTPUT);
+  pinMode(L298N_IN4, OUTPUT);
+  pinMode(RELAY_PIN, OUTPUT);
+  
+  // Initialize Serial communication
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Turn on the relay
+  digitalWrite(RELAY_PIN, 0);
+  Serial.println("Relay is ON");
+  delay(5000); // Wait for 5 seconds
+  
+  // Turn off the relay
+  digitalWrite(RELAY_PIN, 1);
+  Serial.println("Relay is OFF");
+  delay(5000); // Wait for 5 seconds
+  
+  // Turn on the motor
+  digitalWrite(L298N_IN1, HIGH);
+  digitalWrite(L298N_IN2, LOW);
+  digitalWrite(L298N_IN3, HIGH);
+  digitalWrite(L298N_IN4, LOW);
+  Serial.println("Motor is ON");
+  delay(5000); // Run the motor for 5 seconds
+  
+  // Turn off the motor
+  digitalWrite(L298N_IN1, LOW);
+  digitalWrite(L298N_IN2, LOW);
+  digitalWrite(L298N_IN3, LOW);
+  digitalWrite(L298N_IN4, LOW);
+  Serial.println("Motor is OFF");
+  delay(5000); // Wait for 5 seconds
+}
