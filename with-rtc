@@ -11,8 +11,8 @@ const int temperaturePin = 2; // Pin connected to the DS18B20 temperature sensor
 #define PH_PIN A1
 
 // Calibration values
-float calibrationADCValue[] = {0, 4, 17, 26, 130, 381, 493};
-float calibrationTDS[] = {0, 9, 22, 50, 300, 634, 1000};
+float calibrationADCValue[] = {0,2,21,50 ,116,166,220,275,316,363,412,455,487          };
+float calibrationTDS[] = {0,20, 50, 100, 200,300,400,500,600,700,800,900,1000      };
 
 #define SCOUNT 30      // sum of sample point
 int analogBuffer[SCOUNT];
