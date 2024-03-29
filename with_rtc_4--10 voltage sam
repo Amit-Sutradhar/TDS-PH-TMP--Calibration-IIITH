@@ -1,0 +1,70 @@
+
+
+
+
+
+//sexy////////////////////////////////////////////////
+
+// Pin where the TDS sensor output is connected
+const int sensorPin = A0;
+
+// Calibration data
+const float calibrationVoltages[] = {0, 0.02, 0.11, 0.25, 0.57, 0.82, 1.08, 1.35, 1.54, 1.77, 1.99, 2.18, 2.32};
+const int calibrationTDS[] = {0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000};
+const int numCalibrationPoints = sizeof(calibrationVoltages) / sizeof(calibrationVoltages[0]);
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(9600);
+}
+
+void loop() {
+  // Read the voltage from the TDS sensor
+  int sensorValue = analogRead(sensorPin);
+  
+  // Convert the sensor value to voltage (assuming 5V reference voltage)
+  float voltage = sensorValue * (5.0 / 1023.0);
+
+  // Print the voltage to the serial monitor
+  Serial.print("Voltage: ");
+  Serial.print(voltage, 2); // Print voltage with 2 decimal places
+  Serial.println(" V");
+
+  // Calculate the TDS value using linear interpolation or extrapolation
+  int tdsValue = interpolateTDS(voltage);
+
+  // Print the TDS value to the serial monitor
+  Serial.print("TDS Value: ");
+  Serial.println(tdsValue);
+
+  // Delay before the next reading
+  delay(1000); // Adjust as needed
+}
+
+// Function to perform linear interpolation or extrapolation and calculate the TDS value
+int interpolateTDS(float voltage) {
+  // Find the two calibration points surrounding the current voltage
+  int idx = 0;
+  while (idx < numCalibrationPoints && calibrationVoltages[idx] < voltage) {
+    idx++;
+  }
+  
+  // If the voltage is beyond the calibration range, extrapolate the TDS value
+  if (idx == 0) {
+    return calibrationTDS[0];
+  } else if (idx == numCalibrationPoints) {
+    // Calculate the slope of the calibration curve
+    float slope = (float)(calibrationTDS[numCalibrationPoints - 1] - calibrationTDS[numCalibrationPoints - 2]) /
+                  (calibrationVoltages[numCalibrationPoints - 1] - calibrationVoltages[numCalibrationPoints - 2]);
+    // Extrapolate the TDS value using the slope
+    return calibrationTDS[numCalibrationPoints - 1] + (int)(slope * (voltage - calibrationVoltages[numCalibrationPoints - 1]));
+  }
+  
+  // Perform linear interpolation to calculate the TDS value
+  float tdsValue = calibrationTDS[idx - 1] + 
+                   (calibrationTDS[idx] - calibrationTDS[idx - 1]) * 
+                   ((voltage - calibrationVoltages[idx - 1]) / (calibrationVoltages[idx] - calibrationVoltages[idx - 1]));
+  
+  return int(tdsValue); // Convert to integer and return
+}
+.............this code is use tds voltage,,, not adc vallue to convert the tds ,,,,,,,,,,use voltage shoe voltgae 10 sampleee, good code maybe infuture i use this code becouse adc will change but this voltage is not ,, but temperature compensation is not addded on that code 
