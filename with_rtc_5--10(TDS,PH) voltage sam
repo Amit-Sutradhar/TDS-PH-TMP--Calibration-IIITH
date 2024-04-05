@@ -1,0 +1,121 @@
+
+
+
+#include <OneWire.h>
+#include <DallasTemperature.h>
+#include "DFRobot_PH.h"
+#include <EEPROM.h>
+
+// Pin where the TDS sensor output is connected
+const int sensorPin = A0;
+// Pin where the DS18B20 temperature sensor is connected
+const int temperaturePin = 2;
+// Pin where the pH sensor output is connected
+const int PH_PIN = A1;
+
+const int SCOUNT = 30; // sum of sample point
+float analogBuffer[SCOUNT];
+int analogBufferIndex = 0;
+float temperature = 25;
+
+// Calibration data for TDS sensor
+const float calibrationVoltages[] = {0, 0.02, 0.11, 0.25, 0.57, 0.82, 1.08, 1.35, 1.54, 1.77, 1.99, 2.18, 2.32};
+const int calibrationTDS[] = {0, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000};
+const int numCalibrationPoints = sizeof(calibrationVoltages) / sizeof(calibrationVoltages[0]);
+
+// Initialize Dallas Temperature sensor
+OneWire oneWire(temperaturePin);
+DallasTemperature sensors(&oneWire);
+
+// Initialize pH sensor
+DFRobot_PH ph;
+
+void setup() {
+  Serial.begin(9600);
+  
+  // Start up the DS18B20 temperature sensor
+  sensors.begin();
+
+  // Initialize pH sensor
+  ph.begin();
+}
+void loop() {
+  static unsigned long timepoint = millis();
+  if (millis() - timepoint > 1000U) { //time interval: 1s
+    timepoint = millis();
+    
+    // Read TDS sensor voltage
+    int sensorValue = analogRead(sensorPin);
+    float voltage = sensorValue * (5.0 / 1023.0);
+
+    // Read temperature from DS18B20 sensor
+    sensors.requestTemperatures();
+    float temperature = sensors.getTempCByIndex(0);
+
+    // Calculate the compensation coefficient for TDS sensor
+    float compensationCoefficient = 1.0 + 0.02 * (temperature - 25.0);
+    // Calculate the compensated voltage for TDS sensor
+    float compensatedVoltage = voltage / compensationCoefficient;
+    // Calculate TDS value using linear interpolation
+    int tdsValue = interpolateTDS(compensatedVoltage);
+
+    // Read pH sensor voltage
+    float phVoltage = analogRead(PH_PIN) / 1024.0 * 5000;
+    // Calculate pH value with temperature compensation
+    float phValue = ph.readPH(phVoltage, temperature);
+
+    // Print readings to serial monitor
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.print(" °C  TDS Value: ");
+
+    
+    Serial.print(tdsValue);
+    Serial.print("  pH: ");
+    Serial.println(phValue, 2);
+
+
+    // Print the voltage to the serial monitor
+    Serial.print("TDS Voltage: ");
+    Serial.print(voltage, 2); // Print voltage with 2 decimal places
+    Serial.println(" V");
+
+
+    // pH sensor calibration process by Serial CMD
+    ph.calibration(phVoltage, temperature);
+  }
+}
+
+
+// Function to perform linear interpolation or extrapolation and calculate the TDS value
+int interpolateTDS(float voltage) {
+  // Find the two calibration points surrounding the current voltage
+  int idx = 0;
+  while (idx < numCalibrationPoints && calibrationVoltages[idx] < voltage) {
+    idx++;
+  }
+  
+  // If the voltage is beyond the calibration range, extrapolate the TDS value
+  if (idx == 0) {
+    return calibrationTDS[0];
+  } else if (idx == numCalibrationPoints) {
+    // Calculate the slope of the calibration curve
+    float slope = (float)(calibrationTDS[numCalibrationPoints - 1] - calibrationTDS[numCalibrationPoints - 2]) /
+                  (calibrationVoltages[numCalibrationPoints - 1] - calibrationVoltages[numCalibrationPoints - 2]);
+    // Extrapolate the TDS value using the slope
+    return calibrationTDS[numCalibrationPoints - 1] + (int)(slope * (voltage - calibrationVoltages[numCalibrationPoints - 1]));
+  }
+  
+  // Perform linear interpolation to calculate the TDS value
+  float tdsValue = calibrationTDS[idx - 1] + 
+                   (calibrationTDS[idx] - calibrationTDS[idx - 1]) * 
+                   ((voltage - calibrationVoltages[idx - 1]) / (calibrationVoltages[idx] - calibrationVoltages[idx - 1]));
+  
+  return int(tdsValue); // Convert to integer and return
+}
+
+
+#ON THIS CODE TDS IS CALIBRATED WITH VOLTAGE AND ALSO USE PH -----------
+
+
+
